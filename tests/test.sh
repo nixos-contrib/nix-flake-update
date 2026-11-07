@@ -120,6 +120,18 @@ run_with() {
   set -e
 }
 
+# Runs nix-update with the given flags, and whatever the test exported.
+cli() {
+  log=$scratch/$name.log
+  output=$scratch/$name.output
+  : >"$output"
+  set +e
+  env GITHUB_OUTPUT="$output" GH_LOG="$scratch/$name.gh" PATH="$scratch/bin:$PATH" \
+    "$root/nix-update" "$@" >"$log" 2>&1
+  status=$?
+  set -e
+}
+
 run() { run_with "$root/repair-hashes.sh" "$@"; }
 lock() { run_with "$root/update-lock.sh" "$@"; }
 deliver() { run_with "$root/deliver.sh" "$@"; }
@@ -507,10 +519,158 @@ test_deliver_uses_the_given_base_on_a_detached_head() {
   expect "the base" contains "$(gh_log)" "--base main"
 }
 
+# --- nix-update
+
+# Creates the hash fixture with a stale hash, committed and pushed.
+setup_stale() {
+  setup "$1"
+  change "$DEFAULT_HASH" "$STALE_HASH"
+}
+
+test_cli_prints_its_help() {
+  mkdir "$scratch/$name"
+  cd "$scratch/$name"
+  cli --help
+  expect "success" test "$status" -eq 0
+  expect "the usage" contains "$log" "Usage: nix-update"
+}
+
+test_cli_rejects_an_unknown_option() {
+  mkdir "$scratch/$name"
+  cd "$scratch/$name"
+  cli --frobnicate
+  expect "failure" test "$status" -ne 0
+  expect "the reason" contains "$log" "unknown option --frobnicate"
+}
+
+test_cli_needs_a_value() {
+  mkdir "$scratch/$name"
+  cd "$scratch/$name"
+  cli --delivery
+  expect "failure" test "$status" -ne 0
+  expect "the reason" contains "$log" "--delivery needs a value"
+}
+
+test_cli_leaves_repaired_hashes_in_the_working_tree() {
+  setup_stale "$name"
+  cli --no-update-lock --repair-hashes --installable .#default
+  expect "success" test "$status" -eq 0
+  expect "the current hash" contains flake.nix "$DEFAULT_HASH"
+  expect "only flake.nix modified" test "$(git status --porcelain)" = " M flake.nix"
+  expect "no new commit" test "$(remote_subject)" = change
+}
+
+test_cli_takes_a_flag_value_with_an_equals_sign() {
+  setup_stale "$name"
+  cli --no-update-lock --repair-hashes --delivery=working-tree
+  expect "success" test "$status" -eq 0
+  expect "the current hash" contains flake.nix "$DEFAULT_HASH"
+}
+
+test_cli_runs_in_the_directory_given() {
+  setup_stale "$name"
+  cd "$scratch"
+  cli -C "$repository" --no-update-lock --repair-hashes
+  expect "success" test "$status" -eq 0
+  expect "the current hash" contains "$repository/flake.nix" "$DEFAULT_HASH"
+}
+
+test_cli_updates_the_lock() {
+  setup_lock "$name"
+  echo two >"$dep/file"
+  cli
+  expect "success" test "$status" -eq 0
+  expect "flake.lock changed" test -n "$(git status --porcelain flake.lock)"
+}
+
+test_cli_updates_only_the_inputs_named() {
+  setup_lock "$name"
+  echo two >"$dep/file"
+  echo two >"$other/file"
+  cli --input dep
+  expect "success" test "$status" -eq 0
+  expect "one hash moved" test "$(git diff -U0 flake.lock | grep -c '^[-+] *"narHash"')" -eq 2
+}
+
+test_cli_pushes_with_the_flags() {
+  setup_stale "$name"
+  cli --no-update-lock --repair-hashes --delivery push --commit-message "fix: hash" \
+    --author-name bot --author-email bot@example.com
+  expect "success" test "$status" -eq 0
+  expect "the commit message" test "$(remote_subject)" = "fix: hash"
+  expect "the author" test "$(git log -1 --format='%an <%ae>')" = "bot <bot@example.com>"
+}
+
+test_cli_opens_a_pull_request_with_the_flags() {
+  setup_stale "$name"
+  cli --no-update-lock --repair-hashes --delivery pull-request --branch bot \
+    --pr-title "chore: hash" --pr-label dependencies --pr-label "auto merge" \
+    --pr-reviewer alice --pr-assignee bob --auto-merge --merge-method rebase
+  expect "success" test "$status" -eq 0
+  expect "the pull request" contains "$(gh_log)" "pr create --base main --head bot --title chore: hash"
+  expect "the first label" contains "$(gh_log)" "--label dependencies"
+  expect "the label with a space" contains "$(gh_log)" "--label auto merge"
+  expect "the reviewer" contains "$(gh_log)" "--reviewer alice"
+  expect "the assignee" contains "$(gh_log)" "--assignee bob"
+  expect "auto-merge" contains "$(gh_log)" "pr merge --auto --rebase $PR_URL"
+}
+
+test_cli_reads_the_environment() {
+  setup_stale "$name"
+  export DELIVERY=push COMMIT_MESSAGE="fix: from the environment"
+  cli --no-update-lock --repair-hashes
+  expect "success" test "$status" -eq 0
+  expect "the commit message" test "$(remote_subject)" = "fix: from the environment"
+}
+
+test_cli_prefers_a_flag_to_the_environment() {
+  setup_stale "$name"
+  export DELIVERY=push
+  cli --no-update-lock --repair-hashes --delivery working-tree
+  expect "success" test "$status" -eq 0
+  expect "no new commit" test "$(remote_subject)" = change
+}
+
+test_cli_refuses_to_commit_a_dirty_tree() {
+  setup_stale "$name"
+  echo work >in-progress
+  cli --no-update-lock --repair-hashes --delivery push
+  expect "failure" test "$status" -ne 0
+  expect "the reason" contains "$log" "working tree has changes"
+  expect "nothing pushed" test "$(remote_subject)" = change
+}
+
+test_cli_commits_a_dirty_tree_when_told_to() {
+  setup_stale "$name"
+  echo work >in-progress
+  cli --no-update-lock --repair-hashes --delivery push --allow-dirty
+  expect "success" test "$status" -eq 0
+  expect "the commit pushed" test "$(remote_subject)" = "chore(nix): update flake"
+}
+
+test_cli_does_not_check_the_tree_in_actions() {
+  setup_stale "$name"
+  echo work >in-progress
+  export GITHUB_ACTIONS=true
+  cli --no-update-lock --repair-hashes --delivery push
+  expect "success" test "$status" -eq 0
+  expect "the commit pushed" test "$(remote_subject)" = "chore(nix): update flake"
+}
+
+test_cli_checks_a_dirty_tree_only_when_it_would_commit() {
+  setup_stale "$name"
+  echo work >in-progress
+  cli --no-update-lock --repair-hashes
+  expect "success" test "$status" -eq 0
+  expect "the current hash" contains flake.nix "$DEFAULT_HASH"
+}
+
 # Each test runs in its own process, so set -e and cd stay contained.
 if [ "${1:-}" = --run ]; then
   name=$2
   scratch=$3
+  # The runner sets it, and the tree check is off in Actions.
+  unset GITHUB_ACTIONS
   "$name"
   exit 0
 fi

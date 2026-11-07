@@ -41,7 +41,7 @@ AUTHOR_EMAIL=${AUTHOR_EMAIL:-41898283+github-actions[bot]@users.noreply.github.c
 COMMITTER_NAME=${COMMITTER_NAME:-$AUTHOR_NAME}
 COMMITTER_EMAIL=${COMMITTER_EMAIL:-$AUTHOR_EMAIL}
 BASE=${BASE:-}
-BRANCH=${BRANCH:-nix-flake-update}
+BRANCH=${BRANCH:-nix-update}
 PR_TITLE=${PR_TITLE:-$COMMIT_MESSAGE}
 PR_BODY=${PR_BODY:-}
 PR_LABELS=${PR_LABELS:-}
@@ -191,7 +191,7 @@ fi
 
 body=$PR_BODY
 if [ -z "$body" ]; then
-  body='Automated changes by [nix-flake-update](https://github.com/nixos-contrib/nix-flake-update).'
+  body='Automated changes by [nix-update](https://github.com/nixos-contrib/nix-update).'
   if [ -n "$changes" ]; then
     body="$body"$'\n\n```\n'"$changes"$'\n```'
   fi

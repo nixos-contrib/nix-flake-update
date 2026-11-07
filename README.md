@@ -1,6 +1,6 @@
-# nix-flake-update
+# nix-update
 
-[![CI](https://github.com/nixos-contrib/nix-flake-update/actions/workflows/ci.yml/badge.svg)](https://github.com/nixos-contrib/nix-flake-update/actions/workflows/ci.yml)
+[![CI](https://github.com/nixos-contrib/nix-update/actions/workflows/ci.yml/badge.svg)](https://github.com/nixos-contrib/nix-update/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A GitHub Action that keeps a Nix flake up to date:
@@ -56,7 +56,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v23
 
       - name: Update flake.lock
-        uses: nixos-contrib/nix-flake-update@v1
+        uses: nixos-contrib/nix-update@v1
         with:
           token: ${{ steps.app-token.outputs.token }}
           pr-title: "chore(flake): update flake.lock"
@@ -101,7 +101,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v23
 
       - name: Update dependency hash
-        uses: nixos-contrib/nix-flake-update@v1
+        uses: nixos-contrib/nix-update@v1
         with:
           update-lock: false
           repair-hashes: true
@@ -196,7 +196,7 @@ later steps.
 | `git-committer-email` | the author email | Committer email of the commit. |
 | `token` | | Token to open the pull request and push with. When empty, the pull request uses `GITHUB_TOKEN` and a push uses the credentials `actions/checkout` set. |
 | `base` | the checked-out branch | Base branch of the pull request. |
-| `branch` | `nix-flake-update` | Branch the pull request is pushed from. |
+| `branch` | `nix-update` | Branch the pull request is pushed from. |
 | `pr-title` | the commit subject | Title of the pull request. |
 | `pr-body` | a summary of the updated inputs | Body of the pull request. `{{ env.GIT_COMMIT_MESSAGE }}` in it is replaced with that summary. |
 | `pr-labels` | | Comma- or newline-separated labels. They must exist. |
@@ -218,6 +218,37 @@ GitHub-hosted runners already have.
 | `pull-request-url` | URL of that pull request. |
 | `pull-request-operation` | `created`, `updated`, `closed` when nothing was left to change, or `none` when the branch already held the change. |
 
+## Command line
+
+The same steps run from a shell, with nothing but Nix installed:
+
+```sh
+nix run github:nixos-contrib/nix-update -- --help
+```
+
+Run it in the directory that holds `flake.nix`, or pass `-C DIR`. By default it
+updates `flake.lock` and leaves the change in the working tree:
+
+```sh
+nix run github:nixos-contrib/nix-update                      # update flake.lock
+nix run github:nixos-contrib/nix-update -- --input nixpkgs   # only nixpkgs
+```
+
+After bumping `go.sum`, `Cargo.lock` or `package-lock.json` by hand, repair the
+stale hash in place:
+
+```sh
+nix run github:nixos-contrib/nix-update -- \
+  --no-update-lock --repair-hashes --installable .#default
+```
+
+Every setting of the action is a flag, such as `--delivery pull-request`,
+`--branch`, `--pr-label` and `--auto-merge`, and the variables the action sets
+work too, with a flag winning over a variable. A pull request needs `gh`,
+logged in or with `GH_TOKEN` set. `--delivery push` and `--delivery pull-request`
+commit everything under the directory, so they refuse to start when the
+working tree already has changes, unless you pass `--allow-dirty`.
+
 ## Migrating from update-flake-lock
 
 Change the `uses:` line, and add `permissions: pull-requests: write` if the
@@ -225,7 +256,7 @@ job does not have it. The inputs keep their names, and `pull-request-number`,
 `pull-request-url` and `pull-request-operation` are the same outputs. What
 differs:
 
-- The default branch is `nix-flake-update`, not `update_flake_lock_action`.
+- The default branch is `nix-update`, not `update_flake_lock_action`.
   Set `branch` to keep the old one.
 - Commits are signed by no key: `sign-commits` and the `gpg-*` inputs do not
   exist. A commit made with a GitHub App token is not marked verified either.
@@ -246,7 +277,7 @@ local remote, and a fake `gh`:
 ```sh
 nix develop --command tests/test.sh                            # every test
 nix develop --command tests/test.sh test_updates_a_stale_hash  # one test
-nix develop --command shellcheck repair-hashes.sh update-lock.sh deliver.sh tests/test.sh
+nix develop --command shellcheck nix-update repair-hashes.sh update-lock.sh deliver.sh tests/test.sh
 nix develop --command actionlint
 ```
 
