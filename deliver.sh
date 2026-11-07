@@ -11,7 +11,7 @@
 # requests, which GitHub-hosted runners carry.
 #
 # Environment:
-#   DELIVERY         "pull-request", "push" or "none".
+#   DELIVERY         "pull-request", "push" or "working-tree".
 #   COMMIT_MESSAGE   Subject of the commit.
 #   CHANGES_FILE     File holding the summary update-lock.sh wrote, if any.
 #   SKIP_CI          "true" to add [skip ci] to the commit subject.
@@ -52,9 +52,9 @@ MERGE_METHOD=${MERGE_METHOD:-squash}
 TOKEN=${TOKEN:-}
 
 case $DELIVERY in
-  pull-request | push | none) ;;
+  pull-request | push | working-tree) ;;
   *)
-    echo "::error::delivery must be pull-request, push or none, not $DELIVERY."
+    echo "::error::delivery must be pull-request, push or working-tree, not $DELIVERY."
     exit 1
     ;;
 esac
@@ -121,7 +121,7 @@ fi
 set_output updated true
 set_output files "$files"
 
-if [ "$DELIVERY" = none ]; then
+if [ "$DELIVERY" = working-tree ]; then
   echo "Updated: $files"
   exit 0
 fi

@@ -37,7 +37,7 @@ inputs:
   delivery:
     description: >-
       What to do with the changes: "pull-request" opens or updates a pull
-      request, "push" commits to the checked-out branch, and "none" leaves
+      request, "push" commits to the checked-out branch, and "working-tree" leaves
       them in the working tree.
     default: pull-request
   commit-msg:

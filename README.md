@@ -174,7 +174,7 @@ rebuilt from the base on every run, and a pull request is opened from it:
   auto-merge, and a required status check gives it something to wait for.
 
 With `delivery: push`, the changes are committed and pushed to the
-checked-out branch. With `delivery: none`, they stay in the working tree for
+checked-out branch. With `delivery: working-tree`, they stay in the working tree for
 later steps.
 
 ## Inputs
@@ -187,7 +187,7 @@ later steps.
 | `installables` | `.#default` | Space- or newline-separated flake installables to build, to repair the hashes. |
 | `path-to-flake-dir` | `.` | Directory that holds `flake.nix`. Every `.nix` file under it is searched for stale hashes. |
 | `nix-options` | | Space-separated options to pass to every `nix` command. |
-| `delivery` | `pull-request` | `pull-request`, `push` or `none`. |
+| `delivery` | `pull-request` | `pull-request`, `push` or `working-tree`. |
 | `commit-msg` | `chore(nix): update flake` | Subject of the commit. |
 | `skip-ci` | `false` | Add `[skip ci]` to the commit subject. Do not use it with a pull request whose checks are required: they would never run. |
 | `git-author-name` | `github-actions[bot]` | Author name of the commit. |

@@ -327,7 +327,7 @@ test_deliver_puts_the_changes_in_the_commit() {
 test_deliver_leaves_the_working_tree() {
   setup_plain "$name"
   modify
-  deliver DELIVERY=none
+  deliver DELIVERY=working-tree
   expect "success" test "$status" -eq 0
   expect "updated=true" test "$(output_of updated)" = true
   expect "no new commit" test "$(remote_subject)" = fixture
