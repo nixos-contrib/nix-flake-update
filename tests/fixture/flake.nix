@@ -1,5 +1,5 @@
 {
-  description = "Fixed-output derivations for the nix-flake-update tests";
+  description = "Fixed-output derivations for the nix-update tests";
 
   # No inputs: each package is a bare derivation, so a build needs neither
   # nixpkgs nor the network.

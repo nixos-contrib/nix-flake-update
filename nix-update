@@ -16,7 +16,7 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 usage() {
   cat <<'EOF'
-Usage: nix-flake-update [options]
+Usage: nix-update [options]
 
 Updates flake.lock, repairs stale fixed-output hashes, and delivers the
 result. Run it in the directory that holds flake.nix, or pass -C.
@@ -63,7 +63,7 @@ EOF
 }
 
 die() {
-  echo "nix-flake-update: $*" >&2
+  echo "nix-update: $*" >&2
   exit 1
 }
 

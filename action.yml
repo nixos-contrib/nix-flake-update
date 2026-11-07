@@ -72,7 +72,7 @@ inputs:
     default: ""
   branch:
     description: Branch the pull request is pushed from.
-    default: nix-flake-update
+    default: nix-update
   pr-title:
     description: Title of the pull request. The commit subject when empty.
     default: ""
@@ -129,7 +129,7 @@ runs:
         NIX_OPTIONS: ${{ inputs.nix-options }}
         DELIVERY: ${{ inputs.delivery }}
         COMMIT_MESSAGE: ${{ inputs.commit-msg }}
-        CHANGES_FILE: ${{ runner.temp }}/nix-flake-update-changes.txt
+        CHANGES_FILE: ${{ runner.temp }}/nix-update-changes.txt
         SKIP_CI: ${{ inputs.skip-ci }}
         AUTHOR_NAME: ${{ inputs.git-author-name }}
         AUTHOR_EMAIL: ${{ inputs.git-author-email }}
@@ -147,4 +147,4 @@ runs:
         TOKEN: ${{ inputs.token }}
         GH_TOKEN: ${{ inputs.token || github.token }}
         GH_REPO: ${{ github.repository }}
-      run: "$GITHUB_ACTION_PATH/nix-flake-update"
+      run: "$GITHUB_ACTION_PATH/nix-update"

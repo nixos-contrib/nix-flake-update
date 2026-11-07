@@ -32,12 +32,12 @@
           perl
         ];
 
-        nix-flake-update = pkgs.stdenvNoCC.mkDerivation {
-          name = "nix-flake-update";
+        nix-update = pkgs.stdenvNoCC.mkDerivation {
+          name = "nix-update";
           src = pkgs.lib.fileset.toSource {
             root = ./.;
             fileset = pkgs.lib.fileset.unions [
-              ./nix-flake-update
+              ./nix-update
               ./update-lock.sh
               ./repair-hashes.sh
               ./deliver.sh
@@ -48,22 +48,22 @@
           # The scripts stay together, since the command finds the others next
           # to itself.
           installPhase = ''
-            install -Dm0755 -t $out/libexec/nix-flake-update \
-              nix-flake-update update-lock.sh repair-hashes.sh deliver.sh
-            makeWrapper $out/libexec/nix-flake-update/nix-flake-update $out/bin/nix-flake-update \
+            install -Dm0755 -t $out/libexec/nix-update \
+              nix-update update-lock.sh repair-hashes.sh deliver.sh
+            makeWrapper $out/libexec/nix-update/nix-update $out/bin/nix-update \
               --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
           '';
           meta = {
             description = "Update a flake: flake.lock, stale fixed-output hashes, and a pull request";
-            mainProgram = "nix-flake-update";
+            mainProgram = "nix-update";
           };
         };
       in
       {
-        packages.default = nix-flake-update;
+        packages.default = nix-update;
 
         devShells.default = pkgs.mkShell {
-          name = "nix-flake-update";
+          name = "nix-update";
           # Not runtimeInputs: the tests should run with the runner's own sed,
           # awk and grep, as the action does on macOS, not GNU ones.
           packages = with pkgs; [

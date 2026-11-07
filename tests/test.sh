@@ -120,14 +120,14 @@ run_with() {
   set -e
 }
 
-# Runs nix-flake-update with the given flags, and whatever the test exported.
+# Runs nix-update with the given flags, and whatever the test exported.
 cli() {
   log=$scratch/$name.log
   output=$scratch/$name.output
   : >"$output"
   set +e
   env GITHUB_OUTPUT="$output" GH_LOG="$scratch/$name.gh" PATH="$scratch/bin:$PATH" \
-    "$root/nix-flake-update" "$@" >"$log" 2>&1
+    "$root/nix-update" "$@" >"$log" 2>&1
   status=$?
   set -e
 }
@@ -519,7 +519,7 @@ test_deliver_uses_the_given_base_on_a_detached_head() {
   expect "the base" contains "$(gh_log)" "--base main"
 }
 
-# --- nix-flake-update
+# --- nix-update
 
 # Creates the hash fixture with a stale hash, committed and pushed.
 setup_stale() {
@@ -532,7 +532,7 @@ test_cli_prints_its_help() {
   cd "$scratch/$name"
   cli --help
   expect "success" test "$status" -eq 0
-  expect "the usage" contains "$log" "Usage: nix-flake-update"
+  expect "the usage" contains "$log" "Usage: nix-update"
 }
 
 test_cli_rejects_an_unknown_option() {
