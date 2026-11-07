@@ -25,7 +25,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v23
 
       - name: Run ShellCheck
-        run: nix develop --command shellcheck nix-update-hash.sh tests/test.sh
+        run: nix develop --command shellcheck repair-hashes.sh update-lock.sh deliver.sh tests/test.sh
 
       - name: Run actionlint
         run: nix develop --command actionlint
@@ -76,11 +76,14 @@ jobs:
           git remote add origin "$repository.git"
           git push --quiet --set-upstream origin main
 
-      - name: Update dependency hash
+      - name: Repair the stale hash
         id: update
         uses: ./
         with:
-          working-directory: ${{ runner.temp }}/repository
+          update-lock: "false"
+          repair-hashes: "true"
+          delivery: push
+          path-to-flake-dir: ${{ runner.temp }}/repository
 
       - name: Check the pushed fix
         env:
@@ -90,7 +93,7 @@ jobs:
           test "$UPDATED" = true
           test "$FILES" = flake.nix
           grep -qF sha256-AWZuwGBGbBS5+gbGE/usRJFj8qIBdVj+FlJiCat4xrA= "$RUNNER_TEMP/repository/flake.nix"
-          test "$(git --git-dir="$RUNNER_TEMP/repository.git" log -1 --format=%s main)" = "chore(nix): update dependency hash"
+          test "$(git --git-dir="$RUNNER_TEMP/repository.git" log -1 --format=%s main)" = "chore(nix): update flake"
 
   release:
     needs: [lint, test, action]

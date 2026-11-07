@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Repairs the fixed-output hashes a dependency bump leaves stale -- vendorHash,
-# cargoHash, npmDepsHash, or any other -- and optionally commits and pushes
-# the result.
+# cargoHash, npmDepsHash, or any other -- in the working tree. Committing and
+# delivering the result is deliver.sh's job.
 #
 # It builds the installables and, for every "hash mismatch in fixed-output
 # derivation" error, writes the hash Nix got over the one it was given, in
@@ -20,19 +20,13 @@
 # GitHub-hosted runners carry.
 #
 # Environment:
-#   INSTALLABLES    Space- or newline-separated flake installables to build.
-#   COMMIT          "true" to commit and push the updated files.
-#   COMMIT_MESSAGE  Message of that commit.
-#   AUTHOR_NAME     Author and committer name of that commit.
-#   AUTHOR_EMAIL    Author and committer email of that commit.
+#   INSTALLABLES  Space- or newline-separated flake installables to build.
+#   NIX_OPTIONS   Space-separated options to pass to every nix command.
 
 set -euo pipefail
 
 INSTALLABLES=${INSTALLABLES:-.#default}
-COMMIT=${COMMIT:-true}
-COMMIT_MESSAGE=${COMMIT_MESSAGE:-chore(nix): update dependency hash}
-AUTHOR_NAME=${AUTHOR_NAME:-github-actions[bot]}
-AUTHOR_EMAIL=${AUTHOR_EMAIL:-41898283+github-actions[bot]@users.noreply.github.com}
+NIX_OPTIONS=${NIX_OPTIONS:-}
 
 # A stale hash surfaces one derivation at a time when one fixed-output
 # derivation only becomes reachable once another one builds, so the build is
@@ -40,13 +34,15 @@ AUTHOR_EMAIL=${AUTHOR_EMAIL:-41898283+github-actions[bot]@users.noreply.github.c
 # this only bounds a chain of them.
 ATTEMPTS=5
 
-# Word-split on purpose: the input is a whitespace-separated list.
+# Word-split on purpose: the inputs are whitespace-separated lists.
 # shellcheck disable=SC2206
 installables=($INSTALLABLES)
+# shellcheck disable=SC2206
+nix_options=($NIX_OPTIONS)
 updated_files=""
 
 nix_command() {
-  nix --extra-experimental-features 'nix-command flakes' "$@"
+  nix --extra-experimental-features 'nix-command flakes' ${nix_options[@]+"${nix_options[@]}"} "$@"
 }
 
 # Prints "<specified> <got>" for each hash mismatch in a build log.
@@ -188,21 +184,4 @@ fi
 
 if [ -z "$updated_files" ]; then
   echo "Every hash is up to date."
-  exit 0
 fi
-
-if [ "$COMMIT" != true ]; then
-  exit 0
-fi
-
-if ! branch=$(git symbolic-ref --quiet --short HEAD); then
-  echo "::error::HEAD is detached, so there is no branch to push to. Check out the pull request branch, e.g. actions/checkout with ref: \${{ github.head_ref }}."
-  exit 1
-fi
-
-# Word-split on purpose: the list holds paths without spaces, as written above.
-# shellcheck disable=SC2086
-git add -- $updated_files
-git -c user.name="$AUTHOR_NAME" -c user.email="$AUTHOR_EMAIL" commit --quiet --message "$COMMIT_MESSAGE"
-git push --quiet origin "HEAD:refs/heads/$branch"
-echo "Pushed $(git rev-parse --short HEAD) to $branch."
