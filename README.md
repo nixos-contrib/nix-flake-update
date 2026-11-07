@@ -1,6 +1,6 @@
-# nix-update-hash
+# nix-flake-update
 
-[![CI](https://github.com/nixos-contrib/nix-update-hash/actions/workflows/ci.yml/badge.svg)](https://github.com/nixos-contrib/nix-update-hash/actions/workflows/ci.yml)
+[![CI](https://github.com/nixos-contrib/nix-flake-update/actions/workflows/ci.yml/badge.svg)](https://github.com/nixos-contrib/nix-flake-update/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A GitHub Action that repairs the fixed-output hashes a dependency bump leaves
@@ -72,7 +72,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v23
 
       - name: Update dependency hash
-        uses: nixos-contrib/nix-update-hash@v1
+        uses: nixos-contrib/nix-flake-update@v1
 ```
 
 For Rust, trigger on `paths: [Cargo.lock]`; for npm, on `paths: [package-lock.json]`.
@@ -124,7 +124,7 @@ the repository in its devcontainer, which installs Nix.
 ```sh
 nix develop --command tests/test.sh                            # every test
 nix develop --command tests/test.sh test_updates_a_stale_hash  # one test
-nix develop --command shellcheck nix-update-hash.sh tests/test.sh
+nix develop --command shellcheck repair-hashes.sh tests/test.sh
 nix develop --command actionlint
 ```
 

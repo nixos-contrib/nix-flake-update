@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs nix-update-hash.sh against throwaway copies of tests/fixture,
+# Runs repair-hashes.sh against throwaway copies of tests/fixture,
 # each a git repository with a local bare remote, and checks what it changed,
 # committed and pushed.
 #
@@ -8,7 +8,7 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-script=$root/nix-update-hash.sh
+script=$root/repair-hashes.sh
 fixture=$root/tests/fixture/flake.nix
 
 # The hashes tests/fixture/flake.nix holds, of the outputs it builds.

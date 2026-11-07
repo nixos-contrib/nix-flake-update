@@ -1,4 +1,4 @@
-name: Update Nix Dependency Hash
+name: Update Nix Flake
 description: >-
   Repair the fixed-output hashes (vendorHash, cargoHash, npmDepsHash, ...) a
   dependency bump left stale, and push the fix.
@@ -53,4 +53,4 @@ runs:
         COMMIT_MESSAGE: ${{ inputs.commit-message }}
         AUTHOR_NAME: ${{ inputs.author-name }}
         AUTHOR_EMAIL: ${{ inputs.author-email }}
-      run: "$GITHUB_ACTION_PATH/nix-update-hash.sh"
+      run: "$GITHUB_ACTION_PATH/repair-hashes.sh"

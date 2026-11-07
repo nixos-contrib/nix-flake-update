@@ -1,5 +1,5 @@
 {
-  description = "nix-update-hash development shell";
+  description = "nix-flake-update development shell";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -19,7 +19,7 @@
       in
       {
         devShells.default = pkgs.mkShell {
-          name = "nix-update-hash";
+          name = "nix-flake-update";
           packages = with pkgs; [
             bash
             git
