@@ -1,7 +1,8 @@
 name: Update Nix Flake
 description: >-
-  Repair the fixed-output hashes (vendorHash, cargoHash, npmDepsHash, ...) a
-  dependency bump left stale, and push the fix.
+  Update flake.lock, repair the fixed-output hashes (vendorHash, cargoHash,
+  npmDepsHash, ...) the update or a dependency bump left stale, and deliver
+  the result as a pull request or a push.
 author: nixos-contrib
 
 branding:
@@ -9,48 +10,155 @@ branding:
   color: blue
 
 inputs:
-  installables:
-    description: Space- or newline-separated flake installables to build.
-    default: .#default
-  working-directory:
-    description: >-
-      Directory to build from. Every .nix file under it is searched for the
-      stale hashes.
-    default: .
-  commit:
-    description: >-
-      Commit the updated files and push them to the checked-out branch. Set to
-      "false" to only update the working tree.
+  update-lock:
+    description: Update flake.lock. Set to "false" to only repair hashes.
     default: "true"
-  commit-message:
-    description: Message of the commit.
-    default: "chore(nix): update dependency hash"
-  author-name:
-    description: Author and committer name of the commit.
+  inputs:
+    description: >-
+      Space-separated flake inputs to update. All of them when empty. Only
+      used when update-lock is "true".
+    default: ""
+  repair-hashes:
+    description: >-
+      Build the installables and repair the fixed-output hashes that are stale.
+      Every .nix file under path-to-flake-dir is searched for them.
+    default: "false"
+  installables:
+    description: >-
+      Space- or newline-separated flake installables to build, to repair the
+      hashes. Only used when repair-hashes is "true".
+    default: .#default
+  path-to-flake-dir:
+    description: Directory that holds flake.nix, relative to the repository root.
+    default: .
+  nix-options:
+    description: Space-separated options to pass to every nix command.
+    default: ""
+  delivery:
+    description: >-
+      What to do with the changes: "pull-request" opens or updates a pull
+      request, "push" commits to the checked-out branch, and "none" leaves
+      them in the working tree.
+    default: pull-request
+  commit-msg:
+    description: Subject of the commit.
+    default: "chore(nix): update flake"
+  skip-ci:
+    description: >-
+      Add [skip ci] to the commit subject. Do not use it with a pull request
+      whose checks are required: they would never run.
+    default: "false"
+  git-author-name:
+    description: Author name of the commit.
     default: github-actions[bot]
-  author-email:
-    description: Author and committer email of the commit.
+  git-author-email:
+    description: Author email of the commit.
     default: 41898283+github-actions[bot]@users.noreply.github.com
+  git-committer-name:
+    description: Committer name of the commit. The author name when empty.
+    default: ""
+  git-committer-email:
+    description: Committer email of the commit. The author email when empty.
+    default: ""
+  token:
+    description: >-
+      Token to open the pull request and push with. A push or pull request made
+      with GITHUB_TOKEN starts no workflow runs, so pass a GitHub App or
+      personal access token for CI to run on it. When empty, the pull request
+      uses GITHUB_TOKEN and a push uses the credentials actions/checkout set.
+    default: ""
+  base:
+    description: Base branch of the pull request. The checked-out branch when empty.
+    default: ""
+  branch:
+    description: Branch the pull request is pushed from.
+    default: nix-flake-update
+  pr-title:
+    description: Title of the pull request. The commit subject when empty.
+    default: ""
+  pr-body:
+    description: >-
+      Body of the pull request. A summary of the updated inputs when empty.
+      "{{ env.GIT_COMMIT_MESSAGE }}" in it is replaced with that summary.
+    default: ""
+  pr-labels:
+    description: Comma- or newline-separated labels. They must exist.
+    default: ""
+  pr-assignees:
+    description: Comma- or newline-separated GitHub usernames to assign.
+    default: ""
+  pr-reviewers:
+    description: Comma- or newline-separated GitHub usernames to request a review from.
+    default: ""
+  auto-merge:
+    description: Enable auto-merge on the pull request.
+    default: "false"
+  merge-method:
+    description: '"squash", "merge" or "rebase", when auto-merge is on.'
+    default: squash
 
 outputs:
   updated:
-    description: '"true" when at least one hash was updated, otherwise "false".'
-    value: ${{ steps.update.outputs.updated }}
+    description: '"true" when anything changed, otherwise "false".'
+    value: ${{ steps.deliver.outputs.updated }}
   files:
-    description: Space-separated paths of the updated files, relative to working-directory.
-    value: ${{ steps.update.outputs.files }}
+    description: Space-separated paths of the changed files, relative to path-to-flake-dir.
+    value: ${{ steps.deliver.outputs.files }}
+  pull-request-number:
+    description: Number of the pull request that was created, updated or closed.
+    value: ${{ steps.deliver.outputs.pull-request-number }}
+  pull-request-url:
+    description: URL of that pull request.
+    value: ${{ steps.deliver.outputs.pull-request-url }}
+  pull-request-operation:
+    description: '"created", "updated", "closed" when nothing was left to change, or "none" when the branch already held the change.'
+    value: ${{ steps.deliver.outputs.pull-request-operation }}
 
 runs:
   using: composite
   steps:
-    - name: Update dependency hashes
-      id: update
+    - name: Update flake.lock
+      if: inputs.update-lock == 'true'
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ inputs.path-to-flake-dir }}
+      env:
+        INPUTS: ${{ inputs.inputs }}
+        NIX_OPTIONS: ${{ inputs.nix-options }}
+        CHANGES_FILE: ${{ runner.temp }}/nix-flake-update-changes.txt
+      run: "$GITHUB_ACTION_PATH/update-lock.sh"
+
+    - name: Repair dependency hashes
+      if: inputs.repair-hashes == 'true'
+      shell: bash
+      working-directory: ${{ inputs.path-to-flake-dir }}
       env:
         INSTALLABLES: ${{ inputs.installables }}
-        COMMIT: ${{ inputs.commit }}
-        COMMIT_MESSAGE: ${{ inputs.commit-message }}
-        AUTHOR_NAME: ${{ inputs.author-name }}
-        AUTHOR_EMAIL: ${{ inputs.author-email }}
+        NIX_OPTIONS: ${{ inputs.nix-options }}
       run: "$GITHUB_ACTION_PATH/repair-hashes.sh"
+
+    - name: Deliver the changes
+      id: deliver
+      shell: bash
+      working-directory: ${{ inputs.path-to-flake-dir }}
+      env:
+        DELIVERY: ${{ inputs.delivery }}
+        COMMIT_MESSAGE: ${{ inputs.commit-msg }}
+        CHANGES_FILE: ${{ runner.temp }}/nix-flake-update-changes.txt
+        SKIP_CI: ${{ inputs.skip-ci }}
+        AUTHOR_NAME: ${{ inputs.git-author-name }}
+        AUTHOR_EMAIL: ${{ inputs.git-author-email }}
+        COMMITTER_NAME: ${{ inputs.git-committer-name }}
+        COMMITTER_EMAIL: ${{ inputs.git-committer-email }}
+        BASE: ${{ inputs.base }}
+        BRANCH: ${{ inputs.branch }}
+        PR_TITLE: ${{ inputs.pr-title }}
+        PR_BODY: ${{ inputs.pr-body }}
+        PR_LABELS: ${{ inputs.pr-labels }}
+        PR_ASSIGNEES: ${{ inputs.pr-assignees }}
+        PR_REVIEWERS: ${{ inputs.pr-reviewers }}
+        AUTO_MERGE: ${{ inputs.auto-merge }}
+        MERGE_METHOD: ${{ inputs.merge-method }}
+        TOKEN: ${{ inputs.token }}
+        GH_TOKEN: ${{ inputs.token || github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: "$GITHUB_ACTION_PATH/deliver.sh"
