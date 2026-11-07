@@ -273,6 +273,35 @@ test_update_lock_leaves_a_current_lock_alone() {
   expect "a clean working tree" test -z "$(git status --porcelain)"
 }
 
+test_update_lock_keeps_only_the_input_changes() {
+  local shim=$scratch/$name-shim
+  mkdir "$shim" "$scratch/$name"
+  # A nix that reports an update among the noise a real one prints.
+  cat >"$shim/nix" <<'EOF'
+#!/usr/bin/env bash
+cat >&2 <<'REPORT'
+unpacking 'github:numtide/flake-utils/b7a79d3' into the tarball cache...
+warning: updating lock file "/work/flake.lock":
+• Updated input 'nixpkgs':
+    'github:NixOS/nixpkgs/674a202' (2026-10-24)
+  → 'github:NixOS/nixpkgs/6dadaf4' (2026-11-04)
+• Added input 'extra':
+    'github:example/extra/abc1234' (2026-11-01)
+evaluation warning: something is deprecated
+REPORT
+EOF
+  chmod +x "$shim/nix"
+  touch "$scratch/$name/flake.nix"
+  cd "$scratch/$name"
+  lock PATH="$shim:$scratch/bin:$PATH" CHANGES_FILE="$scratch/$name.changes"
+  expect "success" test "$status" -eq 0
+  expect "only the input changes" test "$(cat "$scratch/$name.changes")" = "• Updated input 'nixpkgs':
+    'github:NixOS/nixpkgs/674a202' (2026-10-24)
+  → 'github:NixOS/nixpkgs/6dadaf4' (2026-11-04)
+• Added input 'extra':
+    'github:example/extra/abc1234' (2026-11-01)"
+}
+
 test_update_lock_fails_without_a_flake() {
   mkdir "$scratch/$name"
   cd "$scratch/$name"

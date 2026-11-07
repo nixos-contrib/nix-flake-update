@@ -39,9 +39,16 @@ fi
 printf '%s\n' "$log"
 echo "::endgroup::"
 
-# What Nix reports for each input it added, updated or removed, without its
-# warnings.
-changes=$(printf '%s\n' "$log" | grep -vE '^(warning|evaluation warning):' || true)
+# What Nix reports for each input it added, updated or removed: the lines that
+# start with a bullet, and the indented ones that follow, without the download
+# progress and the warnings around them.
+changes=$(
+  printf '%s\n' "$log" | awk '
+    /^•/ { keep = 1; print; next }
+    /^[[:space:]]/ && keep { print; next }
+    { keep = 0 }
+  '
+)
 
 if [ -n "$CHANGES_FILE" ]; then
   printf '%s\n' "$changes" >"$CHANGES_FILE"
