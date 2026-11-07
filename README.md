@@ -218,6 +218,37 @@ GitHub-hosted runners already have.
 | `pull-request-url` | URL of that pull request. |
 | `pull-request-operation` | `created`, `updated`, `closed` when nothing was left to change, or `none` when the branch already held the change. |
 
+## Command line
+
+The same steps run from a shell, with nothing but Nix installed:
+
+```sh
+nix run github:nixos-contrib/nix-flake-update -- --help
+```
+
+Run it in the directory that holds `flake.nix`, or pass `-C DIR`. By default it
+updates `flake.lock` and leaves the change in the working tree:
+
+```sh
+nix run github:nixos-contrib/nix-flake-update                      # update flake.lock
+nix run github:nixos-contrib/nix-flake-update -- --input nixpkgs   # only nixpkgs
+```
+
+After bumping `go.sum`, `Cargo.lock` or `package-lock.json` by hand, repair the
+stale hash in place:
+
+```sh
+nix run github:nixos-contrib/nix-flake-update -- \
+  --no-update-lock --repair-hashes --installable .#default
+```
+
+Every setting of the action is a flag, such as `--delivery pull-request`,
+`--branch`, `--pr-label` and `--auto-merge`, and the variables the action sets
+work too, with a flag winning over a variable. A pull request needs `gh`,
+logged in or with `GH_TOKEN` set. `--delivery push` and `--delivery pull-request`
+commit everything under the directory, so they refuse to start when the
+working tree already has changes, unless you pass `--allow-dirty`.
+
 ## Migrating from update-flake-lock
 
 Change the `uses:` line, and add `permissions: pull-requests: write` if the
@@ -246,7 +277,7 @@ local remote, and a fake `gh`:
 ```sh
 nix develop --command tests/test.sh                            # every test
 nix develop --command tests/test.sh test_updates_a_stale_hash  # one test
-nix develop --command shellcheck repair-hashes.sh update-lock.sh deliver.sh tests/test.sh
+nix develop --command shellcheck nix-flake-update repair-hashes.sh update-lock.sh deliver.sh tests/test.sh
 nix develop --command actionlint
 ```
 

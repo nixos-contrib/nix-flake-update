@@ -25,7 +25,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v23
 
       - name: Run ShellCheck
-        run: nix develop --command shellcheck repair-hashes.sh update-lock.sh deliver.sh tests/test.sh
+        run: nix develop --command shellcheck nix-flake-update repair-hashes.sh update-lock.sh deliver.sh tests/test.sh
 
       - name: Run actionlint
         run: nix develop --command actionlint
@@ -46,6 +46,9 @@ jobs:
 
       - name: Run Tests
         run: nix develop --command tests/test.sh
+
+      - name: Run the packaged CLI
+        run: nix run .# -- --help
 
   # Runs the action itself, as a caller would -- with the runner's own tools
   # rather than the dev shell -- against a repository whose hash is stale and

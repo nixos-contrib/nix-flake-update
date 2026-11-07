@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+# Updates a flake: runs update-lock.sh, repair-hashes.sh and deliver.sh in
+# turn, as the GitHub Action does. The action sets the environment variables
+# the scripts read; on the command line, flags set them.
+#
+# A flag overrides the variable of the same setting, and a setting with
+# neither keeps the default of the script that reads it, except that the
+# default delivery here is "working-tree": run by hand, nothing is committed
+# unless asked.
+#
+# Kept to bash 3.2, the /bin/bash macOS runners ship.
+
+set -euo pipefail
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+usage() {
+  cat <<'EOF'
+Usage: nix-flake-update [options]
+
+Updates flake.lock, repairs stale fixed-output hashes, and delivers the
+result. Run it in the directory that holds flake.nix, or pass -C.
+
+Steps
+  --update-lock, --no-update-lock    Update flake.lock (default: on)
+  --input NAME                       Update only this input. Repeatable.
+  --repair-hashes, --no-repair-hashes
+                                     Build the installables and repair the
+                                     stale fixed-output hashes (default: off)
+  --installable REF                  Flake installable to build. Repeatable.
+                                     Default: .#default
+  --nix-option OPTION                Option to pass to nix. Repeatable.
+
+Delivery
+  --delivery MODE                    working-tree (default), push, or
+                                     pull-request
+  --commit-message MESSAGE           Subject of the commit
+  --skip-ci                          Add [skip ci] to the commit subject
+  --author-name NAME                 Author of the commit
+  --author-email EMAIL
+  --committer-name NAME              Committer of the commit
+  --committer-email EMAIL
+  --base BRANCH                      Base branch of the pull request
+  --branch BRANCH                    Branch the pull request is pushed from
+  --pr-title TITLE                   Title of the pull request
+  --pr-body BODY                     Body of the pull request
+  --pr-label LABEL                   Label to set. Repeatable.
+  --pr-assignee USER                 User to assign. Repeatable.
+  --pr-reviewer USER                 User to request a review from. Repeatable.
+  --auto-merge                       Enable auto-merge on the pull request
+  --merge-method METHOD              squash (default), merge or rebase
+
+Other
+  -C, --directory DIR                Run in DIR
+  --allow-dirty                      Commit even though the working tree
+                                     already has changes. Without it, push and
+                                     pull-request delivery refuse to start on
+                                     a dirty tree, since they commit it all.
+  -h, --help                         Show this help
+
+A pull request needs gh, logged in or with GH_TOKEN set.
+EOF
+}
+
+die() {
+  echo "nix-flake-update: $*" >&2
+  exit 1
+}
+
+# Prints its arguments after the first, joined with the first.
+join() {
+  local separator=$1 out="" item
+  shift
+  for item in "$@"; do
+    out="${out:+$out$separator}$item"
+  done
+  printf '%s' "$out"
+}
+
+directory=""
+allow_dirty=false
+inputs=()
+installables=()
+nix_options=()
+labels=()
+assignees=()
+reviewers=()
+
+while [ $# -gt 0 ]; do
+  # --flag=value is --flag value.
+  case $1 in
+    --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;;
+  esac
+
+  case $1 in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --update-lock) export UPDATE_LOCK=true ;;
+    --no-update-lock) export UPDATE_LOCK=false ;;
+    --repair-hashes) export REPAIR_HASHES=true ;;
+    --no-repair-hashes) export REPAIR_HASHES=false ;;
+    --skip-ci) export SKIP_CI=true ;;
+    --auto-merge) export AUTO_MERGE=true ;;
+    --allow-dirty) allow_dirty=true ;;
+    -C | --directory | --input | --installable | --nix-option | --delivery | \
+      --commit-message | --author-name | --author-email | --committer-name | \
+      --committer-email | --base | --branch | --pr-title | --pr-body | \
+      --pr-label | --pr-assignee | --pr-reviewer | --merge-method)
+      [ $# -ge 2 ] || die "$1 needs a value."
+      case $1 in
+        -C | --directory) directory=$2 ;;
+        --input) inputs+=("$2") ;;
+        --installable) installables+=("$2") ;;
+        --nix-option) nix_options+=("$2") ;;
+        --delivery) export DELIVERY=$2 ;;
+        --commit-message) export COMMIT_MESSAGE=$2 ;;
+        --author-name) export AUTHOR_NAME=$2 ;;
+        --author-email) export AUTHOR_EMAIL=$2 ;;
+        --committer-name) export COMMITTER_NAME=$2 ;;
+        --committer-email) export COMMITTER_EMAIL=$2 ;;
+        --base) export BASE=$2 ;;
+        --branch) export BRANCH=$2 ;;
+        --pr-title) export PR_TITLE=$2 ;;
+        --pr-body) export PR_BODY=$2 ;;
+        --pr-label) labels+=("$2") ;;
+        --pr-assignee) assignees+=("$2") ;;
+        --pr-reviewer) reviewers+=("$2") ;;
+        --merge-method) export MERGE_METHOD=$2 ;;
+      esac
+      shift
+      ;;
+    *) die "unknown option $1. Try --help." ;;
+  esac
+  shift
+done
+
+# A repeated flag replaces the variable rather than adding to it.
+if [ ${#inputs[@]} -gt 0 ]; then
+  export INPUTS
+  INPUTS=$(join ' ' "${inputs[@]}")
+fi
+if [ ${#installables[@]} -gt 0 ]; then
+  export INSTALLABLES
+  INSTALLABLES=$(join ' ' "${installables[@]}")
+fi
+if [ ${#nix_options[@]} -gt 0 ]; then
+  export NIX_OPTIONS
+  NIX_OPTIONS=$(join ' ' "${nix_options[@]}")
+fi
+if [ ${#labels[@]} -gt 0 ]; then
+  export PR_LABELS
+  PR_LABELS=$(join $'\n' "${labels[@]}")
+fi
+if [ ${#assignees[@]} -gt 0 ]; then
+  export PR_ASSIGNEES
+  PR_ASSIGNEES=$(join $'\n' "${assignees[@]}")
+fi
+if [ ${#reviewers[@]} -gt 0 ]; then
+  export PR_REVIEWERS
+  PR_REVIEWERS=$(join $'\n' "${reviewers[@]}")
+fi
+
+if [ -n "$directory" ]; then
+  cd "$directory" || die "cannot enter $directory."
+fi
+
+UPDATE_LOCK=${UPDATE_LOCK:-true}
+REPAIR_HASHES=${REPAIR_HASHES:-false}
+export DELIVERY=${DELIVERY:-working-tree}
+
+# Committing takes everything under the directory. In CI the checkout is
+# clean, but run by hand it may hold work in progress.
+if [ "${GITHUB_ACTIONS:-}" != true ] && [ "$allow_dirty" != true ] && [ "$DELIVERY" != working-tree ]; then
+  if [ -n "$(git status --porcelain -- . 2>/dev/null)" ]; then
+    die "the working tree has changes, and delivery $DELIVERY would commit them too. Commit or stash them, or pass --allow-dirty."
+  fi
+fi
+
+# deliver.sh deletes it once it has read it, but it exits earlier when there is
+# nothing to deliver.
+if [ -z "${CHANGES_FILE:-}" ]; then
+  CHANGES_FILE=$(mktemp)
+  export CHANGES_FILE
+  trap 'rm -f "$CHANGES_FILE"' EXIT
+fi
+
+if [ "$UPDATE_LOCK" = true ]; then
+  "$here/update-lock.sh"
+fi
+if [ "$REPAIR_HASHES" = true ]; then
+  "$here/repair-hashes.sh"
+fi
+"$here/deliver.sh"
