@@ -1,7 +1,8 @@
 paths:
   # actionlint 1.7.12 knows actions/create-github-app-token@v3 by its older
-  # inputs; v3 itself takes client-id and deprecates app-id.
-  .github/workflows/update.yml:
+  # inputs; v3 itself takes client-id and deprecates app-id. Both the update and
+  # merge workflows make an App token.
+  .github/workflows/{update,merge}.yml:
     ignore:
       - 'missing input "app-id"'
       - 'input "client-id" is not defined'
